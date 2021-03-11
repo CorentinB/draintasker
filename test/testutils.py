@@ -1,42 +1,50 @@
-#!/usr/bin/python
-#
+#!/usr/bin/env python3
+from lib import yaml
+from hashlib import md5
+from io import StringIO
+import gzip
+import random
+import shutil
+from tempfile import mkdtemp
 import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../lib')))
-from tempfile import mkdtemp
-import shutil
-import random
-import gzip
-from StringIO import StringIO
-from hashlib import md5
 
-import yaml
+sys.path.append(os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "../lib")))
 
-__all__ = ['bin', 'TESTCONF', 'TestSpace']
 
-BINDIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+__all__ = ["bin", "TESTCONF", "TestSpace"]
+
+BINDIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+
 def bin(f):
     return os.path.join(BINDIR, f)
 
+
 TESTCONF = dict(
-    crawljob='wide', job_dir='warcs', xfer_dir='sink',
-    sleep_time=300, block_delay=120, max_block_count=120,
+    crawljob="wide",
+    job_dir="warcs",
+    xfer_dir="sink",
+    sleep_time=300,
+    block_delay=120,
+    max_block_count=120,
     retry_delay=2400,
-    max_size=1, # 1G for testing
+    max_size=1,  # 1G for testing
     WARC_naming=2,
-    description='CRAWLHOST:CRAWLJOB from START_DATE to END_DATE.',
-    collections='test_collection',
-    title_prefix='Webwide Crawldata',
+    description="CRAWLHOST:CRAWLJOB from START_DATE to END_DATE.",
+    collections="test_collection",
+    title_prefix="Webwide Crawldata",
     derive=1,
     compact_names=0,
     metadata=dict(
-        sponsor='Internet Archive',
-        operator='crawl@archive.org',
-        creator='Internet Archive',
-        contributor='Internet Archive',
-        scanningcenter='sanfrancisco'
-        )
-    )
+        sponsor="Internet Archive",
+        operator="crawl@archive.org",
+        creator="Internet Archive",
+        contributor="Internet Archive",
+        scanningcenter="sanfrancisco",
+    ),
+)
 
 # test warcinfo record. note that Content-Length is not necessarily correct.
 TEST_WARCINFO = """WARC/1.0
@@ -59,66 +67,74 @@ robots: obey
 http-header-user-agent: Mozilla/5.0 (compatible; archive.org_bot +http://www.archive.org/details/archive.org_bot)
 """
 
+
 class TestSpace(object):
-    def __init__(self, conf, tmpdir='/tmp'):
-        self.dir = mkdtemp(prefix='dtmontest', dir=tmpdir)
-        self.configpath = os.path.join(self.dir, 'dtmon.cfg')
-        os.mkdir(os.path.join(self.dir, 'warcs'))
-        os.mkdir(os.path.join(self.dir, 'sink'))
-        with open(self.configpath, 'w') as w:
+    def __init__(self, conf, tmpdir="/tmp"):
+        self.dir = mkdtemp(prefix="dtmontest", dir=tmpdir)
+        self.configpath = os.path.join(self.dir, "dtmon.cfg")
+        os.mkdir(os.path.join(self.dir, "warcs"))
+        os.mkdir(os.path.join(self.dir, "sink"))
+        with open(self.configpath, "w") as w:
             yaml.dump(conf, w)
+
     def __del__(self):
         if os.path.isdir(self.dir):
             shutil.rmtree(self.dir)
+
     @property
     def jobdir(self):
-        return os.path.join(self.dir, 'warcs')
+        return os.path.join(self.dir, "warcs")
+
     @property
     def xferdir(self):
-        return os.path.join(self.dir, 'sink')
+        return os.path.join(self.dir, "sink")
 
-    def create_warcs(self, names, size=100*1000*1000):
+    def create_warcs(self, names, size=100 * 1000 * 1000):
         """creates test WARC files with names given in jobdir,
         by creating one gzip-compressed file with warcinfo record
         at the beginning, and copy it for the rest.
         """
-        print >>sys.stderr, "creating test WARCs in %s" % self.jobdir
         chunksize = max(size / 1000, 1000)
+        print(
+            "creating test WARCs in %s of size %s with chunksize of %s"
+            % (self.jobdir, size, chunksize),
+            file=sys.stderr,
+        )
         warcs = []
         reuse = None
         for name in names:
-            name += '.warc.gz'
+            name += ".warc.gz"
             path = os.path.join(self.jobdir, name)
-            sys.stdout.write('%s ' % name)
+            sys.stdout.write("%s " % name)
             if reuse:
                 # copy the first one. actually, link would be sufficient
                 # for test.
                 shutil.copy(reuse, path)
             else:
-                z = gzip.open(path, 'wb', compresslevel=0)
-                z.write(TEST_WARCINFO)
+                z = gzip.open(path, "wb", compresslevel=0)
+                z.write(TEST_WARCINFO.encode())
                 z.close()
                 while os.path.getsize(path) < size:
-                    sys.stdout.write('\r%s %s' %
+                    sys.stdout.write("\rwriting: %s - current size: %s" %
                                      (name, os.path.getsize(path)))
-                    z = gzip.open(path, 'a')
+                    z = gzip.open(path, "a")
                     # pack-warcs doesn't care if WARC file content is in fact
                     # WARC records.
                     ss = chunksize
                     while ss > 0:
                         bytes = self.random_bytes(min(ss, 100000))
-                        z.write(bytes)
-                        ss -= len(bytes)
+                        z.write(bytes.encode())
+                        ss -= len(bytes.encode())
                     z.close()
                 reuse = path
             warcs.append(path)
-            sys.stdout.write('\r%s %s\n' % (name, os.path.getsize(path)))
+            sys.stdout.write("\r%s %s\n" % (name, os.path.getsize(path)))
         return warcs
 
     def random_bytes(self, length):
         d = StringIO()
-        for i in xrange(length):
-            d.write(chr(int(random.random()*256)))
+        for i in range(int(length)):
+            d.write(chr(int(random.random() * 256)))
         return d.getvalue()
 
     def prepare_launch_transfers(self, iid, names):
@@ -126,7 +142,7 @@ class TestSpace(object):
         emulating pack-warcs and make-manifest processes, just true enough for
         testing s3-launch-transfers.
         """
-        print >>sys.stderr, "creating test data in %s" % self.jobdir
+        print("creating test data in %s" % self.jobdir, file=sys.stderr)
         SIZE = 1024
 
         itemdir = os.path.join(self.xferdir, iid)
@@ -135,26 +151,26 @@ class TestSpace(object):
         warcs = []
         totalsize = 0
         for name in names:
-            name += '.warc.gz'
+            name += ".warc.gz"
             path = os.path.join(itemdir, name)
-            sys.stdout.write('%s ' % name)
+            sys.stdout.write("%s " % name)
             # files are not even gzipped :-)
             hash = md5()
-            with open(path, 'w') as w:
+            with open(path, "w") as w:
                 bytes = self.random_bytes(SIZE)
                 w.write(bytes)
                 totalsize += SIZE
-                hash.update(bytes)
-            sys.stdout.write('\n')
+                hash.update(bytes.encode("utf-8"))
+            sys.stdout.write("\n")
             warcs.append([name, hash.hexdigest()])
-        
-        packed = os.path.join(itemdir, 'PACKED')
-        with open(packed, 'w') as w:
-            w.write('%s %d %d\n' % (iid, len(names), totalsize))
 
-        manifest = os.path.join(itemdir, 'MANIFEST')
-        with open(manifest, 'w') as w:
+        packed = os.path.join(itemdir, "PACKED")
+        with open(packed, "w") as w:
+            w.write("%s %d %d\n" % (iid, len(names), totalsize))
+
+        manifest = os.path.join(itemdir, "MANIFEST")
+        with open(manifest, "w") as w:
             for warc in warcs:
-                w.write('%s  %s\n' % (warc[1], warc[0]))
+                w.write("%s  %s\n" % (warc[1], warc[0]))
 
         return warcs

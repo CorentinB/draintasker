@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """returns a config dict string from YAML config file
 Usage: config.py file [param]
     file   a YAML config file
@@ -6,20 +6,31 @@ Usage: config.py file [param]
 """
 __author__ = "siznax 2010"
 
-import sys, os, pprint, re
-# svn co http://svn.pyyaml.org/pyyaml/trunk/ lib/pyamml
-#sys.path[0:0] = (os.path.join(sys.path[0], 'lib'),)
-if __name__ == '__main__':
-    libpath = os.path.join(os.path.dirname(__file__), 'lib')
-    if libpath not in sys.path: sys.path.append(libpath)
-import yaml
+import sys
+import os
+import pprint
+import re
+
+from lib import yaml
 
 MAX_ITEM_SIZE_GB = 10
 
-def is_alnum(x): return x.isalnum()
-def is_integer(x): return type(x) == int
-def is_name(x): return re.match(r'[-_a-zA-Z0-9]+$', x)
-def is_boolean(x): return isinstance(x, (bool, int, long))
+
+def is_alnum(x):
+    return x.isalnum()
+
+
+def is_integer(x):
+    return isinstance(x, int)
+
+
+def is_name(x):
+    return re.match(r"[-_a-zA-Z0-9]+$", x)
+
+
+def is_boolean(x):
+    return isinstance(x, (bool, int))
+
 
 class DrainConfig(object):
     def __init__(self, fname):
@@ -30,107 +41,108 @@ class DrainConfig(object):
         """return config dict from YAML file"""
         try:
             with open(fname) as f:
-                return yaml.load(f.read().decode('utf-8'))
+                return yaml.safe_load(f.read())
         except OSError:
-            print >>sys.stderr, "Failed to open %s" % fname
-        except yaml.YAMLError, exc:
-            print >>sys.stderr, "Error parsing config:", exc
+            print("Failed to open %s" % fname, file=sys.stderr)
+        except yaml.YAMLError as exc:
+            print("Error parsing config:", exc, file=sys.stderr)
             sys.exit(1)
 
     def __check(self, name, vf, msg):
         v = self.get_param(name)
         if not vf(v):
-            raise ValueError, '%s %s: %s' % (name, msg, v)
- 
+            raise ValueError("%s %s: %s" % (name, msg, v))
+
     def check_integer(self, name):
-        self.__check(name, is_integer, 'must be an integer')
+        self.__check(name, is_integer, "must be an integer")
 
     def validate(self):
-        self.__check('crawljob', is_name, 'must be alpha-numeric')
-        self.__check('job_dir', os.path.isdir, 'must be a directory')
-        self.__check('xfer_dir', os.path.isdir, 'must be a directory')
-        self.check_integer('sleep_time')
+        self.__check("crawljob", is_name, "must be alpha-numeric")
+        self.__check("job_dir", os.path.isdir, "must be a directory")
+        self.__check("xfer_dir", os.path.isdir, "must be a directory")
+        self.check_integer("sleep_time")
         # max_size < MAX_ITEM_SIZE_GB
-        if self.cfg['max_size'] > MAX_ITEM_SIZE_GB:
-            raise ValueError, "max_size=%d exceeds MAX_ITEM_SIZE_GB=%d" % (
-                self.cfg['max_size'], MAX_ITEM_SIZE_GB)
+        if self.cfg["max_size"] > MAX_ITEM_SIZE_GB:
+            raise ValueError(
+                "max_size=%d exceeds MAX_ITEM_SIZE_GB=%d"
+                % (self.cfg["max_size"], MAX_ITEM_SIZE_GB)
+            )
         # WARC_naming = 1, 2 or a string
-        self.__check('WARC_naming',
-                     lambda x: x in (1, 2) or isinstance(x, basestring),
-                     'must be 1 or 2')
+        self.__check(
+            "WARC_naming", lambda x: x in (1, 2) or isinstance(x, str), "must be 1 or 2"
+        )
         self.validate_naming()
 
-        self.check_integer('block_delay')
-        self.check_integer('retry_delay')
+        self.check_integer("block_delay")
+        self.check_integer("retry_delay")
 
         # description descriptive with keywords
-        if re.search("{describe_effort}", self.cfg['description']):
-            raise ValueError, "desription must not contain "\
-                + "'{describe_effort}'"
-        #for key in ('CRAWLHOST','CRAWLJOB','START_DATE','END_DATE'):
+        if re.search("{describe_effort}", self.cfg["description"]):
+            raise ValueError("desription must not contain " + "'{describe_effort}'")
+        # for key in ('CRAWLHOST','CRAWLJOB','START_DATE','END_DATE'):
         #    if not re.search(key, self.cfg['description']):
         #        raise ValueError, "description must contain placeholder " + key
         # operator not tbd
-        self.__check('operator', lambda x: x != 'tbd@archive.org',
-                     'must be proper operator identifier')
+        self.__check(
+            "operator",
+            lambda x: x != "tbd@archive.org",
+            "must be proper operator identifier",
+        )
         # collections not TBD
-        self.__check('collections', lambda x: x != 'TBD',
-                     'must not contain "TBD"')
+        self.__check("collections", lambda x: x != "TBD", 'must not contain "TBD"')
         # title_prefix not TBD
-        self.__check('title_prefix', lambda x: x != 'TBD Crawldata',
-                     'is invalid')
+        self.__check("title_prefix", lambda x: x != "TBD Crawldata", "is invalid")
         # creator, sponsor, contributor, scanningcenter not null
-        metadata = self['metadata']
-        for key in ('creator','sponsor','contributor','scanningcenter'):
-            #self.__check(key, lambda x: x is not None, 'is missing')
+        metadata = self["metadata"]
+        for key in ("creator", "sponsor", "contributor", "scanningcenter"):
+            # self.__check(key, lambda x: x is not None, 'is missing')
             # these metadata has been moved to "metadata" submap, which
             # automatically incorporates values from old parameters.
             if not metadata.get(key, None):
-                raise ValueError, '%s is missing' % key
+                raise ValueError("%s is missing" % key)
 
         # derive is int
-        self.check_integer('derive')
+        self.check_integer("derive")
         # compact_names is int
-        self.check_integer('compact_names')
+        self.check_integer("compact_names")
 
         return True
 
     def validate_naming(self):
-        """validate naming WARC filename pattern and item name template.
-        """
+        """validate naming WARC filename pattern and item name template."""
         wnpat = self.warc_name_pattern
         intmp = self.item_name_template
 
         # all the fields referenced in intmp must either be defined in
         # wnpat, or be derivable from them.
-        fields_in_wnpat = re.findall(r'\{([A-Za-z][A-Za-z0-9]*)\}', wnpat)
-        #print "fields_in_wnpat=%r" % fields_in_wnpat
-        defined_symbols = fields_in_wnpat + ['last'+s for s in fields_in_wnpat]
-        if 'host' in fields_in_wnpat:
-            defined_symbols.append('shost')
-            defined_symbols.append('lastshost')
-        if 'timestamp' in fields_in_wnpat:
-            defined_symbols.append('timestamp14')
-            defined_symbols.append('lasttimestamp14')
-        defined_symbols.append('suffix')
+        fields_in_wnpat = re.findall(r"\{([A-Za-z][A-Za-z0-9]*)\}", wnpat)
+        # print "fields_in_wnpat=%r" % fields_in_wnpat
+        defined_symbols = fields_in_wnpat + ["last" + s for s in fields_in_wnpat]
+        if "host" in fields_in_wnpat:
+            defined_symbols.append("shost")
+            defined_symbols.append("lastshost")
+        if "timestamp" in fields_in_wnpat:
+            defined_symbols.append("timestamp14")
+            defined_symbols.append("lasttimestamp14")
+        defined_symbols.append("suffix")
         undefined_symbols = []
-        for ref in re.findall(r'\{([A-Za-z][A-Za-z0-9]*)\}', intmp):
+        for ref in re.findall(r"\{([A-Za-z][A-Za-z0-9]*)\}", intmp):
             if ref not in defined_symbols:
                 undefined_symbols.append(ref)
-        #print "undefined_symbols=%r" % undefined_symbols
+        # print "undefined_symbols=%r" % undefined_symbols
         if undefined_symbols:
-            raise ValueError, 'item_naming has undefined field(s): %s' % \
-                ', '.join(undefined_symbols)
+            raise ValueError(
+                "item_naming has undefined field(s): %s" % ", ".join(undefined_symbols)
+            )
 
     @property
     def warc_name_pattern(self):
-        """format of WARC files in job (incoming) directory.
-        """
-        naming = self.get_param('WARC_naming')
+        """format of WARC files in job (incoming) directory."""
+        naming = self.get_param("WARC_naming")
         if naming == 1:
-            return '{prefix}-{timestamp}-{serial}-{host}'
+            return "{prefix}-{timestamp}-{serial}-{host}"
         elif naming == 2:
-            return '{prefix}-{timestamp}-{serial}-{pid}~{host}~{port}'
+            return "{prefix}-{timestamp}-{serial}-{pid}~{host}~{port}"
         else:
             return str(naming)
 
@@ -139,65 +151,65 @@ class DrainConfig(object):
         """format of WARC files in item directory (which is the name
         WARC files are uploaded to the storage.)
         """
-        if self.get_param('compact_names'):
+        if self.get_param("compact_names"):
             # WARCs in item dir have been renamed to this format
-            return '{prefix}-{timestamp}-{serial}'
+            return "{prefix}-{timestamp}-{serial}"
         else:
             return self.warc_name_pattern
 
     @property
     def item_name_template(self):
-        naming = self.get_param('item_naming')
+        naming = self.get_param("item_naming")
         if naming is None:
-            if self.get_param('compact_names'):
-                naming = '{prefix}-{timestamp14}{suffix}-{shost}'
+            if self.get_param("compact_names"):
+                naming = "{prefix}-{timestamp14}{suffix}-{shost}"
             else:
-                naming = '{prefix}-{timestamp}-{serial}-{lastserial}-{shost}'
+                naming = "{prefix}-{timestamp}-{serial}-{lastserial}-{shost}"
         return naming
 
     @property
     def item_name_template_sh(self):
         tmpl = self.item_name_template
-        return re.sub(r'\{[A-Za-z][_0-9A-Za-z]*\}',
-                      lambda m: '$'+m.group(0), tmpl)
+        return re.sub(r"\{[A-Za-z][_0-9A-Za-z]*\}", lambda m: "$" + m.group(0), tmpl)
 
     def get_param(self, param):
         return self[param]
 
     def __getitem__(self, param):
-        if param in ('xfer_dir', 'job_dir'):
-            return os.path.abspath(os.path.join(
-                    os.path.dirname(self.fname), self.cfg[param]))
-        if param == 'warc_name_pattern':
+        if param in ("xfer_dir", "job_dir"):
+            return os.path.abspath(
+                os.path.join(os.path.dirname(self.fname), self.cfg[param])
+            )
+        if param == "warc_name_pattern":
             return self.warc_name_pattern
-        if param == 'warc_name_pattern_upload':
+        if param == "warc_name_pattern_upload":
             return self.warc_name_pattern_upload
-        if param == 'item_name_template':
+        if param == "item_name_template":
             return self.item_name_template
-        if param == 'item_name_template_sh':
+        if param == "item_name_template_sh":
             return self.item_name_template_sh
-        if param == 'drainme':
-            return os.path.join(self.get_param('job_dir'), 'DRAINME')
-        if param == 'config':
+        if param == "drainme":
+            return os.path.join(self.get_param("job_dir"), "DRAINME")
+        if param == "config":
             return os.path.abspath(self.fname)
-        if param == 'collections':
+        if param == "collections":
             # allow a few different formats
             v = self.cfg[param]
             if isinstance(v, list):
                 # lower collection first (IA convention)
-                return '/'.join(reversed(v))
-            if isinstance(v, basestring) and v.find(';') >= 0:
+                return "/".join(reversed(v))
+            if isinstance(v, str) and v.find(";") >= 0:
                 # IA-conventional one-string notation
-                return '/'.join(reversed(v.split(';')))
+                return "/".join(reversed(v.split(";")))
             return v
-        if param == 'crawlhost':
+        if param == "crawlhost":
             # used in place of CRAWLHOST placeholder in description template.
             # let metadata.scanner override default hostname.
-            md = self.cfg.get('metadata')
-            if md and 'scanner' in md:
-                return md['scanner']
+            md = self.cfg.get("metadata")
+            if md and "scanner" in md:
+                return md["scanner"]
             return os.uname()[1]
-        if param == 'metadata':
+        if param == "metadata":
             # for backward-compatibility, incorporate top-level
             # metadata config parameters into metadata dict.
             # templated/auto-generated metadata, such as title, description
@@ -208,17 +220,21 @@ class DrainConfig(object):
             # TODO: which metadata to include by default would depend on
             # item's mediatype.
             meta = dict(
-                [(name, self.cfg[name])
-                for name in (
-                    'creator',
-                    'sponsor',
-                    'contributor',
-                    'operator',
-                    'scanningcenter'
+                [
+                    (name, self.cfg[name])
+                    for name in (
+                        "creator",
+                        "sponsor",
+                        "contributor",
+                        "operator",
+                        "scanningcenter",
                     )
-                if name in self.cfg
-                ], mediatype='web', subject='crawldata',
-                scanner=os.uname()[1])
+                    if name in self.cfg
+                ],
+                mediatype="web",
+                subject="crawldata",
+                scanner=os.uname()[1],
+            )
             # values in "metadata" param take precedence over top-level
             # metadata.
             v = self.cfg.get(param)
@@ -226,15 +242,14 @@ class DrainConfig(object):
                 meta.update(v)
             # TODO: we should warn/abort if v is not a dict
             return meta
-        if param == 's3cfg':
-            s3cfg = os.environ.get('S3CFG')
+        if param == "s3cfg":
+            s3cfg = os.environ.get("S3CFG")
             if s3cfg:
                 try:
-                    open(s3cfg, 'r')
+                    open(s3cfg, "r")
                     return s3cfg
                 except Exception as ex:
-                    print >>sys.stderr, "Error: cannot read %s (by S3CFG)" % (
-                        s3cfg)
+                    print("Error: cannot read %s (by S3CFG)" % (s3cfg), file=sys.stderr)
                     return None
 
             def candidates():
@@ -245,27 +260,29 @@ class DrainConfig(object):
                 try:
                     # pwd module is not available on all platforms
                     import pwd
+
                     pw = pwd.getpwuid(os.geteuid())
                     if pw:
                         yield pw.pw_dir
                 except ImportError:
                     pass
+
             for path in candidates():
                 try:
-                    s3cfg = os.path.join(path, '.ias3cfg')
-                    open(s3cfg, 'r')
+                    s3cfg = os.path.join(path, ".ias3cfg")
+                    open(s3cfg, "r")
                     return s3cfg
                 except Exception:
                     pass
             return None
-                
+
         return self.cfg.get(param)
 
     def iteritems(self):
         """returns iterator on parameters defined in YAML.
         (does not include synthetic config parameters)
         """
-        return self.cfg.iteritems()
+        return iter(self.cfg.items())
 
     def pprint(self, param=None, format=None, out=sys.stdout):
         if param is None:
@@ -273,46 +290,57 @@ class DrainConfig(object):
         else:
             v = self.get_param(param)
             if isinstance(v, dict):
-                if format == 'header':
-                    for key, value in v.iteritems():
-                        if re.search(r'\s', key): continue
-                        if value is None or value == '': continue
+                if format == "header":
+                    for key, value in v.items():
+                        if re.search(r"\s", key):
+                            continue
+                        if value is None or value == "":
+                            continue
                         for s in format_header(key, value):
-                            print >>out, s
+                            print(s, file=out)
                 else:
-                    for key, value in v.iteritems():
+                    for key, value in v.items():
                         # space in key screws up, so drop it
-                        if re.search(r'\s', key): continue
+                        if re.search(r"\s", key):
+                            continue
                         if value is None:
-                            print >>out, "%s\t"
+                            print("%s\t", file=out)
                         elif isinstance(value, list):
-                            print >>out, "%s\t%s" % (key, ';'.join(value))
+                            print("%s\t%s" % (key, ";".join(value)), file=out)
                         else:
-                            print >>out, "%s\t%s" % (key, value)
+                            print("%s\t%s" % (key, value), file=out)
             elif isinstance(v, list):
                 for value in v:
-                    print >>out, value
+                    print(value, file=out)
             elif isinstance(v, bool):
-                print >>out, int(v)
+                print(int(v), file=out)
             else:
-                print >>out, v if v is not None else ''
-        
+                print(v if v is not None else "", file=out)
+
+
 def format_header(k, v):
     if isinstance(v, list):
         for i, v1 in enumerate(v):
-            yield 'x-archive-meta%02d-%s:%s' % (i+1, k, v1)
+            yield "x-archive-meta%02d-%s:%s" % (i + 1, k, v1)
     else:
-        yield 'x-archive-meta-%s:%s' % (k, v if v is not None else '')
-            
+        yield "x-archive-meta-%s:%s" % (k, v if v is not None else "")
+
+
 if __name__ == "__main__":
     from optparse import OptionParser
+
     opt = OptionParser()
-    opt.add_option('-f', dest='format', default=None)
-    opt.add_option('-m', action='store_const', dest='format', const='header',
-                   help='equivalent of -f header')
+    opt.add_option("-f", dest="format", default=None)
+    opt.add_option(
+        "-m",
+        action="store_const",
+        dest="format",
+        const="header",
+        help="equivalent of -f header",
+    )
     options, args = opt.parse_args()
     if len(args) < 1:
-        print os.path.basename(__file__),  __doc__, __author__
+        print(os.path.basename(__file__), __doc__, __author__)
         sys.exit(1)
     else:
         config = DrainConfig(args[0])
