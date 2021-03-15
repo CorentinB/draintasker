@@ -79,7 +79,7 @@ class TestSpace(object):
         return os.path.join(self.dir, 'sink')
 
     def random_bytes(self, length):
-        return bytes(random.getrandbits(8) for i in range(int(length)))
+        return bytearray(random.getrandbits(8) for i in range(length))
 
     def create_warcs(self, names, size=100*1000*1000):
         """creates test WARC files with names given in jobdir,
@@ -110,7 +110,7 @@ class TestSpace(object):
                     # WARC records.
                     ss = chunksize
                     while ss > 0:
-                        bytes = self.random_bytes(min(ss, 100000))
+                        bytes = self.random_bytes(min(int(ss), 100000))
                         z.write(bytes)
                         ss -= len(bytes)
                     z.close()
