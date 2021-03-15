@@ -6,7 +6,6 @@ import shutil
 import random
 import gzip
 from tempfile import mkdtemp
-from io import StringIO
 from hashlib import md5
 
 sys.path.append(os.path.abspath(
@@ -79,6 +78,9 @@ class TestSpace(object):
     def xferdir(self):
         return os.path.join(self.dir, 'sink')
 
+    def random_bytes(self, length):
+        return bytes(random.getrandbits(8) for i in range(int(length)))
+
     def create_warcs(self, names, size=100*1000*1000):
         """creates test WARC files with names given in jobdir,
         by creating one gzip-compressed file with warcinfo record
@@ -103,25 +105,19 @@ class TestSpace(object):
                 while os.path.getsize(path) < size:
                     sys.stdout.write("\rwriting: %s - current size: %s" %
                                     (name, os.path.getsize(path)))
-                    z = gzip.open(path, 'a')
+                    z = gzip.open(path, 'ab')
                     # pack-warcs doesn't care if WARC file content is in fact
                     # WARC records.
                     ss = chunksize
                     while ss > 0:
                         bytes = self.random_bytes(min(ss, 100000))
-                        z.write(bytes.encode())
-                        ss -= len(bytes.encode())
+                        z.write(bytes)
+                        ss -= len(bytes)
                     z.close()
                 reuse = path
             warcs.append(path)
             sys.stdout.write('\r%s %s\n' % (name, os.path.getsize(path)))
         return warcs
-
-    def random_bytes(self, length):
-        d = StringIO()
-        for i in range(int(length)):
-            d.write(chr(int(random.random()*256)))
-        return d.getvalue()
 
     def prepare_launch_transfers(self, iid, names):
         """create new item directory, fake WARC files, PACKED, and MANIFEST,
@@ -142,11 +138,11 @@ class TestSpace(object):
             sys.stdout.write('%s ' % name)
             # files are not even gzipped :-)
             hash = md5()
-            with open(path, 'w') as w:
+            with open(path, 'wb') as w:
                 bytes = self.random_bytes(SIZE)
                 w.write(bytes)
                 totalsize += SIZE
-                hash.update(bytes.encode('utf-8'))
+                hash.update(bytes)
             sys.stdout.write('\n')
             warcs.append([name, hash.hexdigest()])
         
