@@ -87,7 +87,7 @@ class TestSpace(object):
         at the beginning, and copy it for the rest.
         """
         print("creating test WARCs in %s" % self.jobdir, file=sys.stderr)
-        chunksize = max(size / 1000, 1000)
+        chunksize = max(size // 1000, 1000)
         warcs = []
         reuse = None
         for name in names:
@@ -110,7 +110,7 @@ class TestSpace(object):
                     # WARC records.
                     ss = chunksize
                     while ss > 0:
-                        bytes = self.random_bytes(min(int(ss), 100000))
+                        bytes = self.random_bytes(min(ss, 100000))
                         z.write(bytes)
                         ss -= len(bytes)
                     z.close()
